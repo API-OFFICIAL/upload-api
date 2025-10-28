@@ -1,41 +1,19 @@
 {
-  "name": "premium-upload-api",
-  "version": "2.0.0",
-  "description": "Premium Image Upload API with Auto Processing - Built by Ahmad",
+  "name": "upload-api-universal",
+  "version": "1.0.0",
   "type": "module",
-  "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "node --watch index.js",
-    "production": "NODE_ENV=production node index.js",
-    "pm2": "pm2 index.js --name premium-upload-api",
-    "test": "node index.js"
+    "vps": "node server.js",
+    "vercel": "vercel dev",
+    "dev": "node server.js"
   },
-  "keywords": [
-    "upload",
-    "api",
-    "image-processing",
-    "express",
-    "sharp",
-    "premium"
-  ],
-  "author": "Ahmad",
-  "license": "MIT",
   "dependencies": {
     "express": "^4.18.2",
     "express-fileupload": "^1.4.0",
     "cors": "^2.8.5",
     "sharp": "^0.32.6"
   },
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/your-repo/premium-upload-api"
-  },
-  "bugs": {
-    "url": "https://github.com/your-repo/premium-upload-api/issues"
-  },
-  "homepage": "https://your-domain.com"
+  "devDependencies": {
+    "@vercel/node": "^2.0.0"
+  }
 }
