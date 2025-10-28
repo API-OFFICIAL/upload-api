@@ -1,108 +1,78 @@
-import express from 'express'
-import fileUpload from 'express-fileupload'
-import cors from 'cors'
-import { fileURLToPath } from 'url'
-import { dirname, join } from 'path'
-import fs from 'fs'
-import sharp from 'sharp'
+import fs from "fs";
+import path from "path";
+import sharp from "sharp";
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
+export const config = {
+  api: {
+    bodyParser: false, // supaya bisa terima file binary
+  },
+};
 
-const app = express()
-const PORT = 3000
+export default async function handler(req, res) {
+  const { method, url } = req;
 
-// Middleware
-app.use(cors())
-app.use(fileUpload({
-  createParentPath: true,
-  limits: { fileSize: 5 * 1024 * 1024 } // 5MB max
-}))
-app.use('/uploads', express.static(join(__dirname, 'uploads')))
-
-// Buat folder uploads jika belum ada
-if (!fs.existsSync('uploads')) {
-  fs.mkdirSync('uploads')
-}
-
-// Endpoint upload dengan konversi gambar
-app.post('/upload', async (req, res) => {
-  try {
-    if (!req.files || !req.files.image) {
-      return res.status(400).json({ error: 'No image uploaded' })
-    }
-
-    const image = req.files.image
-    const filename = `img_${Date.now()}.jpg`
-    const filepath = join(__dirname, 'uploads', filename)
-
-    // Konversi gambar ke JPG dengan sharp
-    try {
-      await sharp(image.data)
-        .jpeg({ 
-          quality: 85,
-          progressive: true 
-        })
-        .resize(1200, 1200, { // Resize max 1200px
-          fit: 'inside',
-          withoutEnlargement: true
-        })
-        .toFile(filepath)
-      
-      console.log('✅ Image converted to JPG:', filename)
-
-    } catch (sharpError) {
-      console.log('Sharp conversion failed, using original:', sharpError.message)
-      // Fallback: simpan asli
-      await image.mv(filepath)
-    }
-
-    // URL publik
-    const publicUrl = `http://panel-api.strangled.net/uploads/${filename}`
-
-    res.json({
-      success: true,
-      url: publicUrl,
-      filename: filename,
-      message: 'Image converted to JPG format'
-    })
-
-  } catch (error) {
-    console.error('Upload error:', error)
-    res.status(500).json({ error: 'Upload failed: ' + error.message })
+  // ====== Root - simple HTML ======
+  if (method === "GET" && url === "/") {
+    res.setHeader("Content-Type", "text/html");
+    return res.end(`
+      <h1>🚀 Simple Upload API</h1>
+      <p>POST ke <code>/api/upload</code> dengan file image</p>
+      <form method="POST" action="/api/upload" enctype="multipart/form-data">
+        <input type="file" name="image" accept="image/*"/>
+        <button type="submit">Upload</button>
+      </form>
+    `);
   }
-})
 
-// Health check
-app.get('/', (req, res) => {
-  res.json({ 
-    status: 'OK', 
-    message: 'Upload Server is running',
-    endpoint: 'POST /upload'
-  })
-})
+  // ====== Upload endpoint ======
+  if (method === "POST" && url === "/api/upload") {
+    try {
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const buffer = Buffer.concat(chunks);
 
-// Cleanup file
-setInterval(() => {
-  const uploadsDir = join(__dirname, 'uploads')
-  fs.readdir(uploadsDir, (err, files) => {
-    if (err) return
-    
-    const now = Date.now()
-    files.forEach(file => {
-      const filepath = join(uploadsDir, file)
-      try {
-        const stats = fs.statSync(filepath)
-        if (now - stats.mtime.getTime() > 10 * 60 * 1000) {
-          fs.unlinkSync(filepath)
-          console.log('🗑️ Deleted:', file)
-        }
-      } catch (e) {}
-    })
-  })
-}, 2 * 60 * 1000)
+      // Proses gambar dengan sharp
+      const output = await sharp(buffer)
+        .jpeg({ quality: 85 })
+        .resize(1600, 1600, { fit: "inside", withoutEnlargement: true })
+        .toBuffer();
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`📤 Upload server running on port ${PORT}`)
-  console.log(`📍 Domain: http://panel-api.strangled.net`)
-})
+      const filename = `img_${Date.now()}.jpg`;
+      const filePath = path.join("/tmp", filename);
+      fs.writeFileSync(filePath, output);
+
+      res.setHeader("Content-Type", "application/json");
+      res.end(
+        JSON.stringify({
+          success: true,
+          filename,
+          size: (output.length / 1024).toFixed(2) + " KB",
+          message: "✅ Image uploaded & processed!",
+        })
+      );
+    } catch (err) {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    }
+    return;
+  }
+
+  // ====== Get image from /tmp ======
+  if (method === "GET" && url.startsWith("/api/tmp/")) {
+    const filename = url.split("/api/tmp/")[1];
+    const filePath = path.join("/tmp", filename);
+
+    if (!fs.existsSync(filePath)) {
+      res.statusCode = 404;
+      return res.end("File not found");
+    }
+
+    res.setHeader("Content-Type", "image/jpeg");
+    fs.createReadStream(filePath).pipe(res);
+    return;
+  }
+
+  // ====== Not found ======
+  res.statusCode = 404;
+  res.end("Not found");
+}
