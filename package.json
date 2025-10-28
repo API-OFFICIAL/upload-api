@@ -1,0 +1,41 @@
+{
+  "name": "premium-upload-api",
+  "version": "2.0.0",
+  "description": "Premium Image Upload API with Auto Processing - Built by Ahmad",
+  "type": "module",
+  "main": "upload-server.js",
+  "scripts": {
+    "start": "node upload-server.js",
+    "dev": "node --watch upload-server.js",
+    "production": "NODE_ENV=production node upload-server.js",
+    "pm2": "pm2 start upload-server.js --name premium-upload-api",
+    "test": "node test-upload.js"
+  },
+  "keywords": [
+    "upload",
+    "api",
+    "image-processing",
+    "express",
+    "sharp",
+    "premium"
+  ],
+  "author": "Ahmad",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "express-fileupload": "^1.4.0",
+    "cors": "^2.8.5",
+    "sharp": "^0.32.6"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-repo/premium-upload-api"
+  },
+  "bugs": {
+    "url": "https://github.com/your-repo/premium-upload-api/issues"
+  },
+  "homepage": "https://your-domain.com"
+}
