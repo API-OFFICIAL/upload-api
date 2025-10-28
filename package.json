@@ -1,12 +1,12 @@
 {
-  "name": "upload-api-universal",
-  "version": "1.0.0",
+  "name": "universal-upload-api",
+  "version": "2.0.0",
   "type": "module",
+  "main": "index.js",
   "scripts": {
-    "start": "node server.js",
-    "vps": "node server.js",
-    "vercel": "vercel dev",
-    "dev": "node server.js"
+    "start": "node index.js",
+    "dev": "node index.js",
+    "vercel": "vercel dev"
   },
   "dependencies": {
     "express": "^4.18.2",
@@ -14,7 +14,7 @@
     "cors": "^2.8.5",
     "sharp": "^0.32.6"
   },
-  "devDependencies": {
-    "@vercel/node": "^2.0.0"
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
