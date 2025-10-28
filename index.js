@@ -1,78 +1,74 @@
-import fs from "fs";
-import path from "path";
-import sharp from "sharp";
+import express from 'express'
+import fileUpload from 'express-fileupload'
+import fs from 'fs'
+import path from 'path'
+import sharp from 'sharp'
+import { fileURLToPath } from 'url'
+import { dirname } from 'path'
 
-export const config = {
-  api: {
-    bodyParser: false, // supaya bisa terima file binary
-  },
-};
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
-export default async function handler(req, res) {
-  const { method, url } = req;
+const app = express()
+const PORT = process.env.PORT || 3000
 
-  // ====== Root - simple HTML ======
-  if (method === "GET" && url === "/") {
-    res.setHeader("Content-Type", "text/html");
-    return res.end(`
-      <h1>🚀 Simple Upload API</h1>
-      <p>POST ke <code>/api/upload</code> dengan file image</p>
-      <form method="POST" action="/api/upload" enctype="multipart/form-data">
-        <input type="file" name="image" accept="image/*"/>
-        <button type="submit">Upload</button>
-      </form>
-    `);
+// Middleware
+app.use(fileUpload({ createParentPath: true }))
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
+
+// Pastikan folder uploads ada
+if (!fs.existsSync(path.join(__dirname, 'uploads'))) {
+  fs.mkdirSync(path.join(__dirname, 'uploads'))
+}
+
+// Home route
+app.get('/', (req, res) => {
+  res.send(`
+    <h1>🚀 Simple Upload API</h1>
+    <form method="POST" action="/upload" enctype="multipart/form-data">
+      <input type="file" name="image" accept="image/*" />
+      <button type="submit">Upload</button>
+    </form>
+  `)
+})
+
+// Upload route
+app.post('/upload', async (req, res) => {
+  try {
+    if (!req.files || !req.files.image)
+      return res.status(400).json({ success: false, error: 'No file uploaded' })
+
+    const image = req.files.image
+    const filename = `img_${Date.now()}.jpg`
+    const filepath = path.join(__dirname, 'uploads', filename)
+
+    await sharp(image.data)
+      .resize(1600, 1600, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 85 })
+      .toFile(filepath)
+
+    const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${filename}`
+
+    res.json({
+      success: true,
+      message: '✅ Image uploaded successfully!',
+      filename,
+      url: fileUrl
+    })
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message })
   }
+})
 
-  // ====== Upload endpoint ======
-  if (method === "POST" && url === "/api/upload") {
-    try {
-      const chunks = [];
-      for await (const chunk of req) chunks.push(chunk);
-      const buffer = Buffer.concat(chunks);
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', time: new Date().toISOString() })
+})
 
-      // Proses gambar dengan sharp
-      const output = await sharp(buffer)
-        .jpeg({ quality: 85 })
-        .resize(1600, 1600, { fit: "inside", withoutEnlargement: true })
-        .toBuffer();
+// ✅ Ekspor app (buat Vercel)
+export default app
 
-      const filename = `img_${Date.now()}.jpg`;
-      const filePath = path.join("/tmp", filename);
-      fs.writeFileSync(filePath, output);
-
-      res.setHeader("Content-Type", "application/json");
-      res.end(
-        JSON.stringify({
-          success: true,
-          filename,
-          size: (output.length / 1024).toFixed(2) + " KB",
-          message: "✅ Image uploaded & processed!",
-        })
-      );
-    } catch (err) {
-      res.statusCode = 500;
-      res.end(JSON.stringify({ success: false, error: err.message }));
-    }
-    return;
-  }
-
-  // ====== Get image from /tmp ======
-  if (method === "GET" && url.startsWith("/api/tmp/")) {
-    const filename = url.split("/api/tmp/")[1];
-    const filePath = path.join("/tmp", filename);
-
-    if (!fs.existsSync(filePath)) {
-      res.statusCode = 404;
-      return res.end("File not found");
-    }
-
-    res.setHeader("Content-Type", "image/jpeg");
-    fs.createReadStream(filePath).pipe(res);
-    return;
-  }
-
-  // ====== Not found ======
-  res.statusCode = 404;
-  res.end("Not found");
+// ✅ Jalankan lokal
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`))
 }
