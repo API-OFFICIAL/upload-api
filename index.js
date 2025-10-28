@@ -1,65 +1,77 @@
 import express from 'express'
 import fileUpload from 'express-fileupload'
 import cors from 'cors'
-import sharp from 'sharp'
+import { fileURLToPath } from 'url'
+import { dirname, join } from 'path'
+import fs from 'fs'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
 const app = express()
+const PORT = 3000
 
 // Middleware
 app.use(cors())
-app.use(express.json())
 app.use(fileUpload({
-  limits: { fileSize: 4 * 1024 * 1024 } // 4MB max
+  createParentPath: true,
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB max
 }))
+app.use('/uploads', express.static(join(__dirname, 'uploads')))
 
-// Upload endpoint
-app.post('/', async (req, res) => {
+// Buat folder uploads jika belum ada
+if (!fs.existsSync('uploads')) {
+  fs.mkdirSync('uploads')
+}
+
+// Endpoint upload
+app.post('/upload', async (req, res) => {
   try {
     if (!req.files || !req.files.image) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'No image file provided' 
-      })
+      return res.status(400).json({ error: 'No image uploaded' })
     }
 
     const image = req.files.image
-    
-    // Process image dengan Sharp
-    const processedImage = await sharp(image.data)
-      .jpeg({ quality: 85 })
-      .resize(1200, 1200, {
-        fit: 'inside',
-        withoutEnlargement: true
-      })
-      .toBuffer()
+    const filename = `img_${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`
+    const filepath = join(__dirname, 'uploads', filename)
 
-    // Convert ke base64
-    const base64Image = processedImage.toString('base64')
-    const dataUrl = `data:image/jpeg;base64,${base64Image}`
+    // Simpan file
+    await image.mv(filepath)
+
+    // URL publik (ganti dengan IP/domain server kamu)
+    const publicUrl = `http://localhost:${PORT}/uploads/${filename}`
 
     res.json({
       success: true,
-      data: dataUrl,
-      message: 'Image processed successfully',
-      size: (processedImage.length / 1024).toFixed(2) + ' KB'
+      url: publicUrl,
+      filename: filename
     })
 
   } catch (error) {
     console.error('Upload error:', error)
-    res.status(500).json({ 
-      success: false, 
-      error: 'Upload failed: ' + error.message 
-    })
+    res.status(500).json({ error: 'Upload failed' })
   }
 })
 
-// Health check
-app.get('/', (req, res) => {
-  res.json({
-    status: 'OK',
-    message: 'Upload API is running on Vercel',
-    timestamp: new Date().toISOString()
+// Cleanup file otomatis setelah 5 menit
+setInterval(() => {
+  const uploadsDir = join(__dirname, 'uploads')
+  fs.readdir(uploadsDir, (err, files) => {
+    if (err) return
+    
+    const now = Date.now()
+    files.forEach(file => {
+      const filepath = join(uploadsDir, file)
+      const stats = fs.statSync(filepath)
+      if (now - stats.mtime.getTime() > 5 * 60 * 1000) { // 5 menit
+        fs.unlinkSync(filepath)
+        console.log('Deleted old file:', file)
+      }
+    })
   })
-})
+}, 60 * 1000) // Cek setiap 1 menit
 
-export default app
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`📤 Upload server running on port ${PORT}`)
+  console.log(`📍 Access via: http://localhost:${PORT}`)
+})
